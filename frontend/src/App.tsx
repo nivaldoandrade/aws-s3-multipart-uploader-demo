@@ -1,7 +1,9 @@
 import { useState, type ChangeEvent } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { completeMPU } from './services/completeMPU';
 import { startMPU } from './services/startMPU';
+import { uploadChunk } from './services/uploadChunk';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File>();
@@ -22,12 +24,35 @@ function App() {
     const chunksSize = 5 * 1024 * 1024; //5MB
     const totalChunks = Math.ceil(selectedFile.size / chunksSize);
 
-    const response = await startMPU({
+    const { bucket, key, uploadId, urls } = await startMPU({
       filename: selectedFile.name,
       totalChunks,
     });
 
-    console.log(response);
+    const uploadedParts = await Promise.all(
+      urls.map(async ({ url, partNumber }, index) => {
+        const partCount = index;
+
+        const start = partCount * chunksSize;
+        const end = start + chunksSize;
+
+        const currentChunk = selectedFile.slice(start, end);
+
+        const eTag = await uploadChunk({ url, chunk: currentChunk });
+
+        return {
+          eTag,
+          partNumber,
+        };
+      }),
+    );
+
+    await completeMPU({
+      bucketName: bucket,
+      key,
+      uploadId,
+      uploadedParts,
+    });
   }
 
   return (

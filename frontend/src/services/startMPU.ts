@@ -11,7 +11,7 @@ interface IResponse {
   uploadId: string;
   urls: {
     url: string;
-    partNumber: string;
+    partNumber: number;
   }[];
 }
 
