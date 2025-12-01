@@ -1,0 +1,50 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: nivaldoandrade
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: api
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  memorySize: 128
+  architecture: arm64
+  region: sa-east-1
+  environment:
+    FILE_BUCKET_NAME: !Ref FileBucket
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: s3:PutObject
+          Resource: !Sub ${FileBucket.Arn}/*
+
+
+
+package:
+  individually: true
+
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: false
+    exclude:
+      - '@aws-sdk/*'
+    external:
+      - '@aws-sdk/*'
+
+resources:
+  Resources:
+    FileBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${sls:stage}-file-bucket
+
+functions:
+  createMPU:
+    handler: src/functions/createMPU.handler
+    events:
+      - httpApi:
+          path: /create-mpu
+          method: post
