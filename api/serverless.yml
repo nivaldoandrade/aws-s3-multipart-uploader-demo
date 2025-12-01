@@ -9,6 +9,8 @@ provider:
   memorySize: 128
   architecture: arm64
   region: sa-east-1
+  httpApi:
+    cors: true
   environment:
     FILE_BUCKET_NAME: !Ref FileBucket
   iam:
