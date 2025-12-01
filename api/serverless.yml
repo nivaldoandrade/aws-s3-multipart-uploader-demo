@@ -42,6 +42,16 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:service}-${sls:stage}-file-bucket
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - PUT
+              AllowedOrigins:
+                - 'http://localhost:5173'
+              ExposedHeaders:
+                - 'Etag'
 
 functions:
   createMPU:
@@ -49,4 +59,10 @@ functions:
     events:
       - httpApi:
           path: /create-mpu
+          method: post
+  completeMPU:
+    handler: src/functions/completeMPU.handler
+    events:
+      - httpApi:
+          path: /complete-mpu
           method: post
