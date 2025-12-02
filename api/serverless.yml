@@ -17,8 +17,12 @@ provider:
     role:
       statements:
         - Effect: Allow
-          Action: s3:PutObject
-          Resource: !Sub ${FileBucket.Arn}/*
+          Action:
+            - s3:PutObject
+            - s3:ListBucketMultipartUploads
+          Resource:
+            - !Sub ${FileBucket.Arn}/*
+            - !GetAtt FileBucket.Arn
 
 
 
@@ -66,3 +70,9 @@ functions:
       - httpApi:
           path: /complete-mpu
           method: post
+  listMPUs:
+    handler: src/functions/listMPUs.handler
+    events:
+      - httpApi:
+          path: /list-mpus
+          method: get
