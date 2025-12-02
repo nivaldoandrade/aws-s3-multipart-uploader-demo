@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { calculateChunkSize } from './lib/calculateChunkSize';
 import { completeMPU } from './services/completeMPU';
 import { startMPU } from './services/startMPU';
 import { uploadChunk } from './services/uploadChunk';
@@ -21,7 +22,7 @@ function App() {
       return;
     }
 
-    const chunksSize = 5 * 1024 * 1024; //5MB
+    const chunksSize = calculateChunkSize(selectedFile.size);
     const totalChunks = Math.ceil(selectedFile.size / chunksSize);
 
     const { bucket, key, uploadId, urls } = await startMPU({
