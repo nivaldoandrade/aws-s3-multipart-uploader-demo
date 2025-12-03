@@ -8,6 +8,7 @@ import { startMPU } from './services/startMPU';
 import { uploadChunk } from './services/uploadChunk';
 
 function App() {
+  const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File>();
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -41,6 +42,8 @@ function App() {
       uploadId = result.uploadId;
       key = result.key;
 
+      const uploadedBytesByPart = new Map<number, number>();
+
       const uploadedParts = await Promise.all(
         urls.map(async ({ url, partNumber }, index) => {
           const partCount = index;
@@ -50,7 +53,16 @@ function App() {
 
           const currentChunk = selectedFile.slice(start, end);
 
-          const eTag = await uploadChunk({ url, chunk: currentChunk });
+          const eTag = await uploadChunk({
+            url,
+            chunk: currentChunk,
+            fileSize: selectedFile.size,
+            partNumber,
+            uploadedBytesByPart,
+            onProgress(percent) {
+              setProgress(percent);
+            },
+          });
 
           return {
             eTag,
@@ -65,6 +77,8 @@ function App() {
         uploadId,
         uploadedParts,
       });
+
+      setProgress(100);
     } catch {
       if (key && uploadId && bucketName) {
         await abortMPU({ bucketName, key, uploadId });
@@ -76,7 +90,7 @@ function App() {
     <div className='min-h-svh flex items-center justify-center'>
       <div className='w-full max-w-2xl my-10 px-4'>
         <h1 className='text-center sm:text-left text-4xl tracking-tighter'>
-          Selecione um arquivo:
+          Selecione um arquivo: {progress}
         </h1>
         <form className='space-y-4 mt-5' onSubmit={handleUpload}>
           <Input
