@@ -2,6 +2,7 @@ import { useState, type ChangeEvent } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { calculateChunkSize } from './lib/calculateChunkSize';
+import { abortMPU } from './services/abortMPU';
 import { completeMPU } from './services/completeMPU';
 import { startMPU } from './services/startMPU';
 import { uploadChunk } from './services/uploadChunk';
@@ -25,35 +26,50 @@ function App() {
     const chunksSize = calculateChunkSize(selectedFile.size);
     const totalChunks = Math.ceil(selectedFile.size / chunksSize);
 
-    const { bucket, key, uploadId, urls } = await startMPU({
-      filename: selectedFile.name,
-      totalChunks,
-    });
+    let bucketName: string | undefined;
+    let uploadId: string | undefined;
+    let key: string | undefined;
 
-    const uploadedParts = await Promise.all(
-      urls.map(async ({ url, partNumber }, index) => {
-        const partCount = index;
+    try {
+      const result = await startMPU({
+        filename: selectedFile.name,
+        totalChunks,
+      });
 
-        const start = partCount * chunksSize;
-        const end = start + chunksSize;
+      const { urls } = result;
+      bucketName = result.bucket;
+      uploadId = result.uploadId;
+      key = result.key;
 
-        const currentChunk = selectedFile.slice(start, end);
+      const uploadedParts = await Promise.all(
+        urls.map(async ({ url, partNumber }, index) => {
+          const partCount = index;
 
-        const eTag = await uploadChunk({ url, chunk: currentChunk });
+          const start = partCount * chunksSize;
+          const end = start + chunksSize;
 
-        return {
-          eTag,
-          partNumber,
-        };
-      }),
-    );
+          const currentChunk = selectedFile.slice(start, end);
 
-    await completeMPU({
-      bucketName: bucket,
-      key,
-      uploadId,
-      uploadedParts,
-    });
+          const eTag = await uploadChunk({ url, chunk: currentChunk });
+
+          return {
+            eTag,
+            partNumber,
+          };
+        }),
+      );
+
+      await completeMPU({
+        bucketName,
+        key,
+        uploadId,
+        uploadedParts,
+      });
+    } catch {
+      if (key && uploadId && bucketName) {
+        await abortMPU({ bucketName, key, uploadId });
+      }
+    }
   }
 
   return (
