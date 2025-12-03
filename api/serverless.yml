@@ -83,3 +83,10 @@ functions:
       - httpApi:
           path: /abort-all-mpus
           method: delete
+  abortMPU:
+    handler: src/functions/abortMPU.handler
+    events:
+      - httpApi:
+          path: /abort-mpu
+          method: delete
+
