@@ -1,5 +1,5 @@
 import { Loader2Icon } from 'lucide-react';
-import { useState, useTransition, type ChangeEvent } from 'react';
+import { useRef, useState, useTransition, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -16,11 +16,26 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File>();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     if (event.target.files && event.target.files.length > 0) {
       setProgress(0);
       setSelectedFile(event.target.files[0]);
     }
+  }
+
+  function handleCancelUpload() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    setSelectedFile(undefined);
+    setProgress(0);
   }
 
   function handleUpload(event: React.FormEvent<HTMLFormElement>) {
@@ -31,6 +46,9 @@ function App() {
         toast.error('Selecione um arquivo antes de enviar.');
         return;
       }
+
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       const chunksSize = calculateChunkSize(selectedFile.size);
       const totalChunks = Math.ceil(selectedFile.size / chunksSize);
@@ -67,6 +85,7 @@ function App() {
               fileSize: selectedFile.size,
               partNumber,
               uploadedBytesByPart,
+              abortSignal: controller.signal,
               onProgress(percent) {
                 setProgress(percent);
               },
@@ -88,12 +107,20 @@ function App() {
 
         setProgress(100);
         toast.success('Upload concluído com sucesso!');
-      } catch {
+      } catch (error: any) {
         if (key && uploadId && bucketName) {
           await abortMPU({ bucketName, key, uploadId });
         }
 
-        toast.error('Ocorreu um error durante o upload. Tente novamente.');
+        if (error.name === 'CanceledError') {
+          return;
+        }
+
+        toast.error(
+          'Ocorreu um error durante o upload. Tente novamente.',
+        );
+      } finally {
+        abortRef.current = null;
       }
     });
   }
@@ -109,6 +136,7 @@ function App() {
           </h1>
           <form className='space-y-4 mt-5' onSubmit={handleUpload}>
             <Input
+              ref={fileInputRef}
               className='cursor-pointer'
               type='file'
               onChange={handleFileChange}
@@ -124,6 +152,15 @@ function App() {
             >
               {isLoading && <Loader2Icon className='size-5 animate-spin' />}
               Enviar
+            </Button>
+            <Button
+              className='w-full cursor-pointer'
+              type='button'
+              variant='destructive'
+              disabled={!selectedFile || isLoading}
+              onClick={handleCancelUpload}
+            >
+              Cancelar o Envio
             </Button>
           </form>
         </div>

@@ -8,13 +8,15 @@ interface IUploadChunkParams {
   partNumber: number;
   fileSize: number;
   uploadedBytesByPart: Map<number, number>;
+  abortSignal: AbortSignal;
   onProgress: (percent: number) => void;
 }
-export async function uploadChunk({ chunk, url, maxRetry = 3, partNumber, fileSize, uploadedBytesByPart, onProgress }: IUploadChunkParams) {
+export async function uploadChunk({ chunk, url, maxRetry = 3, partNumber, fileSize, uploadedBytesByPart, abortSignal, onProgress }: IUploadChunkParams) {
   try {
     const { headers } = await axios
       .put<null, { headers: { etag: string } }>(url, chunk,
         {
+          signal: abortSignal,
           onUploadProgress({ loaded }) {
 
             const previousLoaded = uploadedBytesByPart.get(partNumber) ?? 0;
@@ -44,6 +46,7 @@ export async function uploadChunk({ chunk, url, maxRetry = 3, partNumber, fileSi
         onProgress,
         partNumber,
         uploadedBytesByPart,
+        abortSignal,
         maxRetry: maxRetry - 1,
       });
     }
