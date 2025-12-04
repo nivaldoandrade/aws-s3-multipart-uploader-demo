@@ -1,6 +1,10 @@
-import { useState, type ChangeEvent } from 'react';
+import { Loader2Icon } from 'lucide-react';
+import { useState, useTransition, type ChangeEvent } from 'react';
+import { toast } from 'sonner';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Progress } from './components/ui/progress';
+import { Toaster } from './components/ui/sonner';
 import { calculateChunkSize } from './lib/calculateChunkSize';
 import { abortMPU } from './services/abortMPU';
 import { completeMPU } from './services/completeMPU';
@@ -8,105 +12,123 @@ import { startMPU } from './services/startMPU';
 import { uploadChunk } from './services/uploadChunk';
 
 function App() {
+  const [isLoading, startTransition] = useTransition();
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File>();
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     if (event.target.files && event.target.files.length > 0) {
+      setProgress(0);
       setSelectedFile(event.target.files[0]);
     }
   }
 
-  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+    startTransition(async () => {
+      event.preventDefault();
 
-    if (!selectedFile) {
-      return;
-    }
-
-    const chunksSize = calculateChunkSize(selectedFile.size);
-    const totalChunks = Math.ceil(selectedFile.size / chunksSize);
-
-    let bucketName: string | undefined;
-    let uploadId: string | undefined;
-    let key: string | undefined;
-
-    try {
-      const result = await startMPU({
-        filename: selectedFile.name,
-        totalChunks,
-      });
-
-      const { urls } = result;
-      bucketName = result.bucket;
-      uploadId = result.uploadId;
-      key = result.key;
-
-      const uploadedBytesByPart = new Map<number, number>();
-
-      const uploadedParts = await Promise.all(
-        urls.map(async ({ url, partNumber }, index) => {
-          const partCount = index;
-
-          const start = partCount * chunksSize;
-          const end = start + chunksSize;
-
-          const currentChunk = selectedFile.slice(start, end);
-
-          const eTag = await uploadChunk({
-            url,
-            chunk: currentChunk,
-            fileSize: selectedFile.size,
-            partNumber,
-            uploadedBytesByPart,
-            onProgress(percent) {
-              setProgress(percent);
-            },
-          });
-
-          return {
-            eTag,
-            partNumber,
-          };
-        }),
-      );
-
-      await completeMPU({
-        bucketName,
-        key,
-        uploadId,
-        uploadedParts,
-      });
-
-      setProgress(100);
-    } catch {
-      if (key && uploadId && bucketName) {
-        await abortMPU({ bucketName, key, uploadId });
+      if (!selectedFile) {
+        toast.error('Selecione um arquivo antes de enviar.');
+        return;
       }
-    }
+
+      const chunksSize = calculateChunkSize(selectedFile.size);
+      const totalChunks = Math.ceil(selectedFile.size / chunksSize);
+
+      let bucketName: string | undefined;
+      let uploadId: string | undefined;
+      let key: string | undefined;
+
+      try {
+        const result = await startMPU({
+          filename: selectedFile.name,
+          totalChunks,
+        });
+
+        const { urls } = result;
+        bucketName = result.bucket;
+        uploadId = result.uploadId;
+        key = result.key;
+
+        const uploadedBytesByPart = new Map<number, number>();
+
+        const uploadedParts = await Promise.all(
+          urls.map(async ({ url, partNumber }, index) => {
+            const partCount = index;
+
+            const start = partCount * chunksSize;
+            const end = start + chunksSize;
+
+            const currentChunk = selectedFile.slice(start, end);
+
+            const eTag = await uploadChunk({
+              url,
+              chunk: currentChunk,
+              fileSize: selectedFile.size,
+              partNumber,
+              uploadedBytesByPart,
+              onProgress(percent) {
+                setProgress(percent);
+              },
+            });
+
+            return {
+              eTag,
+              partNumber,
+            };
+          }),
+        );
+
+        await completeMPU({
+          bucketName,
+          key,
+          uploadId,
+          uploadedParts,
+        });
+
+        setProgress(100);
+        toast.success('Upload concluído com sucesso!');
+      } catch {
+        if (key && uploadId && bucketName) {
+          await abortMPU({ bucketName, key, uploadId });
+        }
+
+        toast.error('Ocorreu um error durante o upload. Tente novamente.');
+      }
+    });
   }
 
   return (
-    <div className='min-h-svh flex items-center justify-center'>
-      <div className='w-full max-w-2xl my-10 px-4'>
-        <h1 className='text-center sm:text-left text-4xl tracking-tighter'>
-          Selecione um arquivo: {progress}
-        </h1>
-        <form className='space-y-4 mt-5' onSubmit={handleUpload}>
-          <Input
-            className='cursor-pointer'
-            type='file'
-            onChange={handleFileChange}
-          />
-          <Button
-            className='w-full cursor-pointer'
-            type='submit'
-          >
-            Enviar
-          </Button>
-        </form>
+    <>
+      <Toaster />
+
+      <div className='min-h-svh flex items-center justify-center'>
+        <div className='w-full max-w-2xl my-10 px-4'>
+          <h1 className='text-center sm:text-left text-4xl tracking-tighter'>
+            Selecione um arquivo:
+          </h1>
+          <form className='space-y-4 mt-5' onSubmit={handleUpload}>
+            <Input
+              className='cursor-pointer'
+              type='file'
+              onChange={handleFileChange}
+              disabled={isLoading}
+            />
+            {isLoading && (
+              <Progress value={progress} />
+            )}
+            <Button
+              className='w-full cursor-pointer'
+              type='submit'
+              disabled={isLoading || !selectedFile}
+            >
+              {isLoading && <Loader2Icon className='size-5 animate-spin' />}
+              Enviar
+            </Button>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
