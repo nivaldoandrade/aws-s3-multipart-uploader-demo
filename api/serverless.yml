@@ -57,6 +57,12 @@ resources:
                 - 'http://localhost:5173'
               ExposedHeaders:
                 - 'Etag'
+        LifecycleConfiguration:
+          Rules:
+            - Id: ExpireIncompleteMultipartUploadIn1Day
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1 #1day
 
 functions:
   createMPU:
