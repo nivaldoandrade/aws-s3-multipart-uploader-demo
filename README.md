@@ -100,7 +100,7 @@ Para mais informações: [AWS Credentials](https://www.serverless.com/framework/
 
 1. Clone o repositório:
     ```bash
-    git clone https://github.com/seu-usuario/aws-s3-multipart-uploader-demo
+    git clone https://github.com/nivaldoandrade/aws-s3-multipart-uploader-demo
 
     cd aws-s3-multipart-uploader-demo/api
     ```
